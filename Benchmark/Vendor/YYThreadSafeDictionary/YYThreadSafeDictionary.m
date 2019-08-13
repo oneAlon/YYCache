@@ -12,14 +12,12 @@
 #import "YYThreadSafeDictionary.h"
 #import <libkern/OSAtomic.h>
 
-
 #define INIT(...) self = super.init; \
 if (!self) return nil; \
 __VA_ARGS__; \
 if (!_dic) return nil; \
 _lock = OS_SPINLOCK_INIT; \
 return self;
-
 
 #define LOCK(...) OSSpinLockLock(&_lock); \
 __VA_ARGS__; \

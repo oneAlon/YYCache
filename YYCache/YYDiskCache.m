@@ -22,6 +22,7 @@
 static const int extended_data_key;
 
 /// Free disk space in bytes.
+/// 磁盘剩余空间
 static int64_t _YYDiskSpaceFree() {
     NSError *error = nil;
     NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfFileSystemForPath:NSHomeDirectory() error:&error];
@@ -78,9 +79,9 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
 
 
 @implementation YYDiskCache {
-    YYKVStorage *_kv;
-    dispatch_semaphore_t _lock;
-    dispatch_queue_t _queue;
+    YYKVStorage *_kv; // 磁盘缓存
+    dispatch_semaphore_t _lock; // 信号量 锁
+    dispatch_queue_t _queue; // 并发队列
 }
 
 - (void)_trimRecursively {
@@ -130,19 +131,26 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
     [_kv removeItemsEarlierThanTime:(int)age];
 }
 
+// 磁盘可用缓存
 - (void)_trimToFreeDiskSpace:(NSUInteger)targetFreeDiskSpace {
+    // 为0 表示不限制
     if (targetFreeDiskSpace == 0) return;
+    // 获取当前缓存的大小
     int64_t totalBytes = [_kv getItemsSize];
     if (totalBytes <= 0) return;
+    // 获取磁盘总剩余大小
     int64_t diskFreeBytes = _YYDiskSpaceFree();
     if (diskFreeBytes < 0) return;
+    // 需要清理多少磁盘空间
     int64_t needTrimBytes = targetFreeDiskSpace - diskFreeBytes;
     if (needTrimBytes <= 0) return;
+    // 清理之后的磁盘空间 = 当前磁盘缓存的大小 - 需要清理的磁盘大小
     int64_t costLimit = totalBytes - needTrimBytes;
     if (costLimit < 0) costLimit = 0;
     [self _trimToCost:(int)costLimit];
 }
 
+// 根据key生产filename, 经过MD5编码
 - (NSString *)_filenameForKey:(NSString *)key {
     NSString *filename = nil;
     if (_customFileNameBlock) filename = _customFileNameBlock(key);
@@ -176,6 +184,7 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
     self = [super init];
     if (!self) return nil;
     
+    // 如果传入相同的path, 返回缓存的diskCache实例对象
     YYDiskCache *globalCache = _YYDiskCacheGetGlobal(path);
     if (globalCache) return globalCache;
     
@@ -223,6 +232,7 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
     dispatch_async(_queue, ^{
         __strong typeof(_self) self = _self;
         BOOL contains = [self containsObjectForKey:key];
+        // 子线程回调
         block(key, contains);
     });
 }
@@ -235,10 +245,12 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
     if (!item.value) return nil;
     
     id object = nil;
+    // 自定义解档
     if (_customUnarchiveBlock) {
         object = _customUnarchiveBlock(item.value);
     } else {
         @try {
+            // value是二进制数据, 需要解档
             object = [NSKeyedUnarchiver unarchiveObjectWithData:item.value];
         }
         @catch (NSException *exception) {
@@ -246,6 +258,7 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
         }
     }
     if (object && item.extendedData) {
+        // 添加扩展数据
         [YYDiskCache setExtendedData:item.extendedData toObject:object];
     }
     return object;
@@ -263,6 +276,7 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
 
 - (void)setObject:(id<NSCoding>)object forKey:(NSString *)key {
     if (!key) return;
+    // object = nil, 移除缓存数据
     if (!object) {
         [self removeObjectForKey:key];
         return;
@@ -282,13 +296,16 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
     }
     if (!value) return;
     NSString *filename = nil;
+    // 如果type!=YYKVStorageTypeSQLite, 说明是使用file或者混合缓存, 那么就需要filename.
     if (_kv.type != YYKVStorageTypeSQLite) {
+        // 如果需要缓存的数据大于f阈值(默认20k), 就使用file存储
         if (value.length > _inlineThreshold) {
             filename = [self _filenameForKey:key];
         }
     }
     
     Lock();
+    // 内部根据type和filename
     [_kv saveItemWithKey:key value:value filename:filename extendedData:extendedData];
     Unlock();
 }
@@ -427,6 +444,7 @@ static void _YYDiskCacheSetGlobal(YYDiskCache *cache) {
     });
 }
 
+// 扩展数据
 + (NSData *)getExtendedDataFromObject:(id)object {
     if (!object) return nil;
     return (NSData *)objc_getAssociatedObject(object, &extended_data_key);

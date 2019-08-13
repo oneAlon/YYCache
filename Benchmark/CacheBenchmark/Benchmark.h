@@ -9,5 +9,7 @@
 #import <Foundation/Foundation.h>
 
 @interface Benchmark : NSObject
+
 + (void)benchmark;
+
 @end

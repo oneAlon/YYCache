@@ -13,11 +13,13 @@
 #import <QuartzCore/QuartzCore.h>
 
 @implementation Benchmark
+
 + (void)benchmark {
     
-    @autoreleasepool {
+//    @autoreleasepool {
         [self memoryCacheBenchmark];
-    }
+    return;
+//    }
     
     // You should benchmark data writing first.
     // Before benchmark data reading, you should kill the app to avoid disk-in-memory cache.
@@ -100,7 +102,6 @@
     }
     
     NSTimeInterval begin, end, time;
-    
     
     printf("\n===========================\n");
     printf("Memory cache set 200000 key-value pairs\n");
@@ -190,7 +191,7 @@
     printf("NSDict+Lock:    %8.2f\n", time * 1000);
     
     
-    //[yy removeAllObjects]; // it will rebuild inner cache...
+//    [yy removeAllObjects]; // it will rebuild inner cache...
     for (id key in keys) [yy removeObjectForKey:key]; // slow than 'removeAllObjects'
     begin = CACurrentMediaTime();
     @autoreleasepool {

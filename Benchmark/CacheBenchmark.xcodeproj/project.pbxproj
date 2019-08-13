@@ -98,8 +98,8 @@
 		D967E0C51F0553F000791B80 /* SQLite */ = {
 			isa = PBXGroup;
 			children = (
-				D967E0C61F0553F000791B80 /* sqlite3.c */,
 				D967E0C71F0553F000791B80 /* sqlite3.h */,
+				D967E0C61F0553F000791B80 /* sqlite3.c */,
 			);
 			path = SQLite;
 			sourceTree = "<group>";
@@ -414,12 +414,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = LPSW9WPVDR;
 				HEADER_SEARCH_PATHS = "\"$(SRCROOT)\"/**";
 				INFOPLIST_FILE = CacheBenchmark/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.ibireme.CacheBenchmark;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ibireme.CacheBenchmark123;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -429,12 +429,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = LPSW9WPVDR;
 				HEADER_SEARCH_PATHS = "\"$(SRCROOT)\"/**";
 				INFOPLIST_FILE = CacheBenchmark/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				PRODUCT_BUNDLE_IDENTIFIER = com.ibireme.CacheBenchmark;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ibireme.CacheBenchmark123;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

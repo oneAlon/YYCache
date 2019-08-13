@@ -11,8 +11,15 @@
 
 #import "YYKVStorage.h"
 #import <UIKit/UIKit.h>
-#import <time.h>
 
+#if __has_include(<time.h>)
+#import <time.h>
+#else
+#import "time.h"
+#endif
+
+// <> 只会查找系统的库
+// "" 会先查找用户目录文件是否存在, 如果不存在继续查找系统库
 #if __has_include(<sqlite3.h>)
 #import <sqlite3.h>
 #else
@@ -22,10 +29,10 @@
 
 static const NSUInteger kMaxErrorRetryCount = 8;
 static const NSTimeInterval kMinRetryTimeInterval = 2.0;
-static const int kPathLengthMax = PATH_MAX - 64;
-static NSString *const kDBFileName = @"manifest.sqlite";
-static NSString *const kDBShmFileName = @"manifest.sqlite-shm";
-static NSString *const kDBWalFileName = @"manifest.sqlite-wal";
+static const int kPathLengthMax = PATH_MAX - 64; // 文件路径长度限制, 为什么-64呢: path后需要拼接文件名称, 64个字节是为了预留出文件名称的空间, 64也是估算的?
+static NSString *const kDBFileName = @"manifest.sqlite"; // 数据库文件
+static NSString *const kDBShmFileName = @"manifest.sqlite-shm"; // 操作日志
+static NSString *const kDBWalFileName = @"manifest.sqlite-wal"; // 操作日志
 static NSString *const kDataDirectoryName = @"data";
 static NSString *const kTrashDirectoryName = @"trash";
 
@@ -50,7 +57,7 @@ static NSString *const kTrashDirectoryName = @"trash";
     inline_data         blob,
     modification_time   integer,
     last_access_time    integer,
-    extended_data       blob,
+    extended_data       blob, // blob: binary large object 二进制大对象, 用于存储二进制文件的容器
     primary key(key)
  ); 
  create index if not exists last_access_time_idx on manifest(last_access_time);
@@ -76,17 +83,17 @@ static UIApplication *_YYSharedApplication() {
 @end
 
 @implementation YYKVStorage {
-    dispatch_queue_t _trashQueue;
+    dispatch_queue_t _trashQueue; // 串行队列, 用来删除数据
     
     NSString *_path;
-    NSString *_dbPath;
-    NSString *_dataPath;
-    NSString *_trashPath;
+    NSString *_dbPath; // sqlite数据路径
+    NSString *_dataPath; // 文件数据路径
+    NSString *_trashPath; // 垃圾路径? 可以理解为垃圾桶
     
     sqlite3 *_db;
-    CFMutableDictionaryRef _dbStmtCache;
-    NSTimeInterval _dbLastOpenErrorTime;
-    NSUInteger _dbOpenErrorCount;
+    CFMutableDictionaryRef _dbStmtCache; // 是一个可变字典
+    NSTimeInterval _dbLastOpenErrorTime; // 最后一次失败的时间
+    NSUInteger _dbOpenErrorCount; // 记录db失败次数
 }
 
 
@@ -613,6 +620,8 @@ static UIApplication *_YYSharedApplication() {
 
 #pragma mark - file
 
+// atomically: YES, 将data写入到临时文件中, 如果写入成功, 临时文件被重命名
+// atomically: NO, 直接写入到文件中
 - (BOOL)_fileWriteWithName:(NSString *)filename data:(NSData *)data {
     NSString *path = [_dataPath stringByAppendingPathComponent:filename];
     return [data writeToFile:path atomically:NO];
@@ -629,6 +638,7 @@ static UIApplication *_YYSharedApplication() {
     return [[NSFileManager defaultManager] removeItemAtPath:path error:NULL];
 }
 
+// 将文件移动到垃圾桶文件夹中, 移动到垃圾桶文件夹中 不影响data文件夹的操作
 - (BOOL)_fileMoveAllToTrash {
     CFUUIDRef uuidRef = CFUUIDCreate(NULL);
     CFStringRef uuid = CFUUIDCreateString(NULL, uuidRef);
@@ -642,6 +652,7 @@ static UIApplication *_YYSharedApplication() {
     return suc;
 }
 
+// 清空垃圾桶数据
 - (void)_fileEmptyTrashInBackground {
     NSString *trashPath = _trashPath;
     dispatch_queue_t queue = _trashQueue;
@@ -696,6 +707,7 @@ static UIApplication *_YYSharedApplication() {
     _dbPath = [path stringByAppendingPathComponent:kDBFileName];
     _errorLogsEnabled = YES;
     NSError *error = nil;
+    // 创建路径文件夹
     if (![[NSFileManager defaultManager] createDirectoryAtPath:path
                                    withIntermediateDirectories:YES
                                                     attributes:nil
@@ -734,6 +746,8 @@ static UIApplication *_YYSharedApplication() {
     }
 }
 
+#pragma mark - 增加
+
 - (BOOL)saveItem:(YYKVStorageItem *)item {
     return [self saveItemWithKey:item.key value:item.value filename:item.filename extendedData:item.extendedData];
 }
@@ -742,16 +756,24 @@ static UIApplication *_YYSharedApplication() {
     return [self saveItemWithKey:key value:value filename:nil extendedData:nil];
 }
 
+// 保存数据
 - (BOOL)saveItemWithKey:(NSString *)key value:(NSData *)value filename:(NSString *)filename extendedData:(NSData *)extendedData {
+    
+    // 需要缓存的数据为nil
     if (key.length == 0 || value.length == 0) return NO;
+    // 缓存类型为文件类型, 但是fileName为空
     if (_type == YYKVStorageTypeFile && filename.length == 0) {
         return NO;
     }
     
+    // 如果filename不为空
     if (filename.length) {
+        // 保存文件失败, 直接返回
         if (![self _fileWriteWithName:filename data:value]) {
             return NO;
         }
+        // 保存数据库失败, 删除文件缓存
+        // _dbSaveWithKey:value:fileName:extendedData:方法中做了判断 filename.length>0的话只保存key filename等文件信息, 不保存value
         if (![self _dbSaveWithKey:key value:value fileName:filename extendedData:extendedData]) {
             [self _fileDeleteWithName:filename];
             return NO;
@@ -759,6 +781,8 @@ static UIApplication *_YYSharedApplication() {
         return YES;
     } else {
         if (_type != YYKVStorageTypeSQLite) {
+            // 这里filename = nil, 但是存储类型还不是sqlite存储, 所以使用file类型存储
+            // 需要获取filename
             NSString *filename = [self _dbGetFilenameWithKey:key];
             if (filename) {
                 [self _fileDeleteWithName:filename];
@@ -767,6 +791,8 @@ static UIApplication *_YYSharedApplication() {
         return [self _dbSaveWithKey:key value:value fileName:nil extendedData:extendedData];
     }
 }
+
+#pragma mark - 删除
 
 - (BOOL)removeItemForKey:(NSString *)key {
     if (key.length == 0) return NO;
@@ -956,8 +982,11 @@ static UIApplication *_YYSharedApplication() {
     }
 }
 
+#pragma mark - 查找
+
 - (YYKVStorageItem *)getItemForKey:(NSString *)key {
     if (key.length == 0) return nil;
+    // 
     YYKVStorageItem *item = [self _dbGetItemWithKey:key excludeInlineData:NO];
     if (item) {
         [self _dbUpdateAccessTimeWithKey:key];

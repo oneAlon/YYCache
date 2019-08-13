@@ -18,13 +18,13 @@ NS_ASSUME_NONNULL_BEGIN
  Typically, you should not use this class directly.
  */
 @interface YYKVStorageItem : NSObject
-@property (nonatomic, strong) NSString *key;                ///< key
-@property (nonatomic, strong) NSData *value;                ///< value
-@property (nullable, nonatomic, strong) NSString *filename; ///< filename (nil if inline)
-@property (nonatomic) int size;                             ///< value's size in bytes
-@property (nonatomic) int modTime;                          ///< modification unix timestamp
-@property (nonatomic) int accessTime;                       ///< last access unix timestamp
-@property (nullable, nonatomic, strong) NSData *extendedData; ///< extended data (nil if no extended data)
+@property (nonatomic, strong) NSString *key;                ///< key key
+@property (nonatomic, strong) NSData *value;                ///< value 二进制数据
+@property (nullable, nonatomic, strong) NSString *filename; ///< filename (nil if inline) 名称
+@property (nonatomic) int size;                             ///< value's size in bytes 占用字节数
+@property (nonatomic) int modTime;                          ///< modification unix timestamp 修改时间
+@property (nonatomic) int accessTime;                       ///< last access unix timestamp 最后一次访问的时间
+@property (nullable, nonatomic, strong) NSData *extendedData; ///< extended data (nil if no extended data) 扩展数据
 @end
 
 /**
@@ -42,6 +42,11 @@ NS_ASSUME_NONNULL_BEGIN
  * You can use YYKVStorageTypeMixed and choice your storage type for each item.
  
  See <http://www.sqlite.org/intern-v-extern-blob.html> for more information.
+ 磁盘缓存文件的类型
+ 存储数据: 数据库较快
+ 读取数据: 大数据文件类型快, 小数据数据库快
+ 综合考虑: 小数据中数据库, 大数据用文件存储
+ 大小数据分割: 默认是20k
  */
 typedef NS_ENUM(NSUInteger, YYKVStorageType) {
     
@@ -72,6 +77,9 @@ typedef NS_ENUM(NSUInteger, YYKVStorageType) {
  that there's only one thread to access the instance at the same time. If you really 
  need to process large amounts of data in multi-thread, you should split the data
  to multiple KVStorage instance (sharding).
+ // 根据传入的path生成一个文件夹, 保存key-value的二进制数据, path文件夹路径不能修改.
+ // 多线程访问的时候是不安全的, 所以在外界访问的时候必须保证在同一时间必须是一个线程访问.
+ // 如果数据很大需要多个线程同时访问, 可以将key-value存储到多个KVStorage实例中.
  */
 @interface YYKVStorage : NSObject
 
@@ -80,15 +88,15 @@ typedef NS_ENUM(NSUInteger, YYKVStorageType) {
 /// @name Attribute
 ///=============================================================================
 
-@property (nonatomic, readonly) NSString *path;        ///< The path of this storage.
-@property (nonatomic, readonly) YYKVStorageType type;  ///< The type of this storage.
-@property (nonatomic) BOOL errorLogsEnabled;           ///< Set `YES` to enable error logs for debug.
+@property (nonatomic, readonly) NSString *path;        ///< The path of this storage. 文件夹路径, 只读
+@property (nonatomic, readonly) YYKVStorageType type;  ///< The type of this storage. 存储类型, 只读
+@property (nonatomic) BOOL errorLogsEnabled;           ///< Set `YES` to enable error logs for debug. 出现错误信息是是否log错误信息
 
 #pragma mark - Initializer
 ///=============================================================================
 /// @name Initializer
 ///=============================================================================
-- (instancetype)init UNAVAILABLE_ATTRIBUTE;
+- (instancetype)init UNAVAILABLE_ATTRIBUTE; // 使用UNAVAILABLE_ATTRIBUTE, 当调用这个方法的时候就会报错
 + (instancetype)new UNAVAILABLE_ATTRIBUTE;
 
 /**
@@ -124,6 +132,11 @@ typedef NS_ENUM(NSUInteger, YYKVStorageType) {
  
  @param item  An item.
  @return Whether succeed.
+ // 只保存 key value filename extendedData 其他属性都会被忽略
+ // key和value不能为nil或者length = 0
+ // type = YYKVStorageTypeFile, filename属性不能为空
+ // type = YYKVStorageTypeSQLite, filename被忽略
+ // type = YYKVStorageTypeMixed, 如果filename != nil, 将被保存为文件, 否则会被保存为sqlite.
  */
 - (BOOL)saveItem:(YYKVStorageItem *)item;
 
@@ -136,6 +149,7 @@ typedef NS_ENUM(NSUInteger, YYKVStorageType) {
  @param key   The key, should not be empty (nil or zero length).
  @param value The key, should not be empty (nil or zero length).
  @return Whether succeed.
+ // 保存数据到sqlite
  */
 - (BOOL)saveItemWithKey:(NSString *)key value:(NSData *)value;
 

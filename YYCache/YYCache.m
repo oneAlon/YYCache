@@ -15,6 +15,8 @@
 
 @implementation YYCache
 
+#pragma mark - init
+
 - (instancetype) init {
     NSLog(@"Use \"initWithName\" or \"initWithPath\" to create YYCache instance.");
     return [self initWithPath:@""];
@@ -22,6 +24,7 @@
 
 - (instancetype)initWithName:(NSString *)name {
     if (name.length == 0) return nil;
+    // cache路径
     NSString *cacheFolder = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject];
     NSString *path = [cacheFolder stringByAppendingPathComponent:name];
     return [self initWithPath:path];
@@ -50,6 +53,8 @@
     return [[self alloc] initWithPath:path];
 }
 
+#pragma mark - 查询
+
 - (BOOL)containsObjectForKey:(NSString *)key {
     return [_memoryCache containsObjectForKey:key] || [_diskCache containsObjectForKey:key];
 }
@@ -67,10 +72,13 @@
 }
 
 - (id<NSCoding>)objectForKey:(NSString *)key {
+    // 1. 从内存缓存中查找缓存
     id<NSCoding> object = [_memoryCache objectForKey:key];
     if (!object) {
+        // 2. 从磁盘缓存中查找缓存
         object = [_diskCache objectForKey:key];
         if (object) {
+            // 3. 将磁盘缓存中查找到的缓存 保存到内存缓存中
             [_memoryCache setObject:object forKey:key];
         }
     }
@@ -94,6 +102,8 @@
     }
 }
 
+#pragma mark - 增加
+
 - (void)setObject:(id<NSCoding>)object forKey:(NSString *)key {
     [_memoryCache setObject:object forKey:key];
     [_diskCache setObject:object forKey:key];
@@ -103,6 +113,8 @@
     [_memoryCache setObject:object forKey:key];
     [_diskCache setObject:object forKey:key withBlock:block];
 }
+
+#pragma mark - 删除
 
 - (void)removeObjectForKey:(NSString *)key {
     [_memoryCache removeObjectForKey:key];
